@@ -1,0 +1,158 @@
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import l2
+import matplotlib.pyplot as plt
+
+# Set the paths to your dataset 
+print("Setting up the dataset")
+train_dir = '../dataset/'
+print("Dataset path: ", train_dir)
+
+datagen = ImageDataGenerator(
+    rescale=1./255, #rescaling to [0,1]
+    validation_split=0.2,  # validation split
+    rotation_range=15,        # Rotate images
+    width_shift_range=0.1,    # Shift images horizontally
+    height_shift_range=0.1,   # Shift images vertically
+    zoom_range=0.1,          # Zoom in/out
+    horizontal_flip=True,     # Flip horizontally
+    fill_mode='nearest',  # Fill in missing pixels 
+    brightness_range=[0.9, 1.1])  # Brightness range
+
+train_generator = datagen.flow_from_directory(
+    train_dir, 
+    target_size=(24, 24),
+    color_mode='grayscale',
+    batch_size=32, 
+    class_mode='binary', 
+    subset='training')
+print("Number of training samples:", train_generator.samples)
+
+val_generator = datagen.flow_from_directory(
+    train_dir,
+    target_size=(24, 24),
+    color_mode='grayscale',
+    batch_size=32,
+    class_mode='binary',
+    subset='validation')
+
+print("Number of validation samples:", val_generator.samples)
+
+print("\nBuilding the model...")
+
+# Define the model
+model = Sequential([
+    Conv2D(16, (3,3), activation='relu', kernel_regularizer=l2(0.01), input_shape=(24, 24, 1)),
+    MaxPooling2D(2,2),
+    BatchNormalization(),
+    Dropout(0.2),
+    
+    Conv2D(32, (3,3), activation='relu', kernel_regularizer=l2(0.01)),
+    MaxPooling2D(2,2),
+    BatchNormalization(),
+    Dropout(0.2),
+    
+    # Conv2D(128, (3,3), activation='relu'),
+    # MaxPooling2D(2,2),
+    # Dropout(0.25),
+    
+    Flatten(),
+    Dense(32, activation='relu', kernel_regularizer=l2(0.01)),
+    BatchNormalization(),
+    Dropout(0.3),
+    Dense(1, activation='sigmoid')
+])
+
+print("\nModel Summary:")
+model.summary()
+
+optimizer = Adam(learning_rate=0.0001)
+
+#Early stopping to prevent overfitting
+early_stopping = EarlyStopping(
+    monitor='val_loss',
+    patience=6,
+    restore_best_weights=True,
+    verbose=1
+)
+
+#l2 regularization
+reduce_lr = ReduceLROnPlateau(
+    monitor='val_loss',
+    factor=0.3,
+    patience=4,
+    min_lr=0.00001,
+    verbose=1
+)
+checkpoint = ModelCheckpoint(
+    '../models/best_model.keras',
+    monitor='val_accuracy',
+    save_best_only=True,
+    mode='max',
+    verbose=1
+)
+
+
+print("\nCompiling the model...")
+model.compile(
+    optimizer=optimizer, 
+    loss='binary_crossentropy', 
+    metrics=['accuracy'])
+
+
+
+print("\nTraining the model...")
+history = model.fit(
+    train_generator, 
+    validation_data=val_generator,
+    epochs=30,
+    callbacks=[early_stopping, reduce_lr, checkpoint],
+    verbose=1)
+
+print("Model trained")
+
+model.save("../models/eye_status_model.keras")
+
+print("\nTraining History:")
+for epoch in range(len(history.history['accuracy'])):
+    print(f"Epoch {epoch + 1}/30:")
+    print(f"  - loss: {history.history['loss'][epoch]:.4f}")
+    print(f"  - accuracy: {history.history['accuracy'][epoch]:.4f}")
+    print(f"  - val_loss: {history.history['val_loss'][epoch]:.4f}")
+    print(f"  - val_accuracy: {history.history['val_accuracy'][epoch]:.4f}")
+    
+
+
+# Plot training history
+plt.figure(figsize=(12, 4))
+
+# Plot training & validation accuracy
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+
+# Plot training & validation loss
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.tight_layout()
+
+# Save the plot
+plt.savefig('../models/training_history.png')
+print("\nTraining history plot saved as 'training_history.png'")
+
+# Display the plot (optional)
+plt.show()
