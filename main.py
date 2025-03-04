@@ -1,14 +1,14 @@
 import argparse
 import os
-# import sys
 from src.DrowsinessDetector import DrowsinessDetector
 
 
 def main():
+    
     #root_directory
     root_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # argument parser 
+    # parse different arguments
     parser = argparse.ArgumentParser(description='Drowsiness Detection System')
     
     parser.add_argument(
@@ -31,12 +31,10 @@ def main():
         default=0.2,
         help='Time threshold (in seconds) to detect drowsiness (default: 0.2)'
     )
-    
-    # Parse arguments
     args = parser.parse_args()
     
     try:
-        # Initialize drowsiness detector with user parameters
+        # Initializing detector with user inputs
         detector = DrowsinessDetector(
             model_path=args.model,
             alarm_path=args.alarm,
@@ -46,7 +44,7 @@ def main():
         print("Detecting Drowsiness....")
         print("Please press 'q' to stop detection")
         
-        # Start detection
+        # detecting drowsiness
         detector.detect_drowsiness()
         
     except Exception as e:
